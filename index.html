@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type ="text/css" href="./styles.css" />
+    <title>Chloropleth map</title>
+
+<script src="https://unpkg.com/topojson-client@3"></script>
+<script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"
+
+    fetch("https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/counties.json")
+    .then(response => response.json())
+    .then(data => dataHandle(data))
+
+    function dataHandle(data){
+        const countyTopoJson = data;
+        fetch("https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/for_user_education.json")
+        .then(response => response.json())
+        .then(data => {
+            let dataset = {}
+            dataset.countyData = data
+            dataset.countyTopo = countyTopoJson
+            render(dataset);
+        })
+    }
+
+    const path = d3.geoPath()
+    const width = 960
+    const height = 600
+    const svg = d3.select("body").append("svg").attr("width", width).attr("height", height)
+    const g = svg.append("g")
+
+    const tooltip = d3.select("body").append("div")
+                .attr("id", "tooltip")
+                .attr("class", "tooltip")
+                .attr("style", "position: absolute; opacity: 0; text-align: center;")
+
+    function render (data){
+        const rateById = {}
+        data.countyData.forEach(value => {rateById[value.fips] = {educationPercent: value.bachelorsOrHigher, state: value.state, county: value.area_name}})
+        const colour = d3.scaleQuantize()
+                    .domain([3, 66])
+                    .range(d3.schemeGreens[7])
+
+        g.selectAll("path")
+            .data(topojson.feature(data.countyTopo, data.countyTopo.objects.counties).features)
+            .enter().append("path")
+            .attr("d", path)
+            .attr("class", "county")
+            .style("fill", (d) => colour(rateById[d.id].educationPercent))
+            .attr("data-education", d => rateById[d.id].educationPercent)
+            .attr("data-fips", (d) => d.id)
+            .attr("county", (d) => rateById[d.id].county)
+            .attr("state", (d) => rateById[d.id].state)
+            .on("mouseover", (event, d) => {
+                    tooltip.attr("data-education", rateById[d.id].educationPercent)
+                    tooltip.transition().duration(0).style("opacity", .9)
+                    tooltip.html(`${rateById[d.id].county}, ${rateById[d.id].state}: ${rateById[d.id].educationPercent}%`).style("left", (event.pageX + 20) + "px").style("top", (event.pageY - 10) + "px")
+                })
+            .on("mouseout", (d) => {
+                tooltip.style("opacity", 0)
+            })
+            
+        g.append("path")
+            .datum(topojson.mesh(data.countyTopo, data.countyTopo.objects.states, (a, b) => a !== b))
+            .attr("fill", "none")
+            .attr("stroke", "white")
+            .attr("d", path);
+    }
+
+    //Legend
+    const legendData = [
+        {percent: "3%", colour: "#edf8e9"},
+        {percent: "12%", colour: "#c7e9c0"},
+        {percent: "21%", colour: "#a1d99b"},
+        {percent: "30%", colour: "#74c476"},
+        {percent: "39%", colour: "#41ab5d"},
+        {percent: "48%", colour: "#238b45"},
+        {percent: "57%", colour: "#005a32"}
+    ]
+    const xLabels = legendData.map((value) => {return value.percent})
+
+    const legendW = 200
+    const margin = 5
+    //Define legend
+    const legend = svg.append("g").attr("id", "legend").attr("transform", `translate(650, 50)`)
+    //Legend scale and axis
+    const legendScale = d3.scalePoint().domain(xLabels).range([margin, legendW - margin])
+    const xAxis = d3.axisBottom(legendScale).tickSize(20)
+    legend.append("g").attr("transform", `translate(0,0)`).call(xAxis).call(g => g.select(".domain").remove()).attr("font-size", 8)
+
+    //Add data
+    legend
+    .selectAll("rect")
+    .data(legendData)
+    .enter()
+    .append("rect")
+    .attr("x", (d, i) => {if(i != legendData.length-1){return legendScale(d.percent)}})
+    .attr("y", 0)
+    .attr("width", (d, i) => {if(i != legendData.length-1){return (legendW - margin*2)/6}})
+    .attr("height", 15)
+    .attr("fill", (d) => d.colour)
+    .attr("stroke", "black")
+
+</script>
+
+</head>
+
+<body>
+    <h1 id="title">United States Educational Attainment</h1>
+    <p id="description">Percentage of adults age 25 and older with a bachelor's degree or higher (2010-2014)</p>
+    <script src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+</body>
+</html>
